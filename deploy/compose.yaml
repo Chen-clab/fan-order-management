@@ -1,0 +1,35 @@
+services:
+  mysql:
+    image: mysql:8.4
+    environment:
+      MYSQL_ROOT_PASSWORD: ${FAN_MYSQL_ROOT_PASSWORD:?请设置数据库管理员密码}
+      MYSQL_DATABASE: fan
+      MYSQL_USER: ${FAN_DB_USER:?请设置数据库用户名}
+      MYSQL_PASSWORD: ${FAN_DB_PASSWORD:?请设置数据库密码}
+      TZ: UTC
+    ports: ["127.0.0.1:13306:3306"]
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ../backend/sql/ry_20260417.sql:/docker-entrypoint-initdb.d/01-system.sql:ro
+      - ../backend/sql/quartz.sql:/docker-entrypoint-initdb.d/02-quartz.sql:ro
+      - ../backend/sql/fan-commerce.sql:/docker-entrypoint-initdb.d/03-commerce.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -u root -p$$MYSQL_ROOT_PASSWORD --silent"]
+      interval: 10s
+      timeout: 5s
+      retries: 18
+  redis:
+    image: redis:7-alpine
+    ports: ["127.0.0.1:16379:6379"]
+    volumes: ["redis_data:/data"]
+  rabbitmq:
+    image: rabbitmq:3.13-management
+    environment:
+      RABBITMQ_DEFAULT_USER: ${FAN_RABBITMQ_USER:?请设置队列用户名}
+      RABBITMQ_DEFAULT_PASS: ${FAN_RABBITMQ_PASSWORD:?请设置队列密码}
+    ports: ["127.0.0.1:15672:15672", "127.0.0.1:15673:5672"]
+    volumes: ["rabbitmq_data:/var/lib/rabbitmq"]
+volumes:
+  mysql_data:
+  redis_data:
+  rabbitmq_data:

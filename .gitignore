@@ -1,0 +1,25 @@
+# Secrets, private data and local artifacts
+.env
+.env.*
+!frontend/.env.development
+!frontend/.env.production
+!frontend/.env.staging
+!.env.example
+**/*.log
+**/target/
+**/node_modules/
+**/dist/
+**/.idea/
+**/.vscode/
+**/__pycache__/
+**/*.pyc
+**/*.xlsx
+**/*.pem
+**/*.key
+**/*.p12
+**/*.pfx
+**/data/
+**/uploads/
+
+.venv/
+**/.venv/

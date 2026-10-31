@@ -1,0 +1,2 @@
+ALTER TABLE fan_merchant_document MODIFY content MEDIUMBLOB NULL, ADD COLUMN object_key VARCHAR(255) NULL;
+ALTER TABLE fan_product_asset MODIFY content MEDIUMBLOB NULL, ADD COLUMN object_key VARCHAR(255) NULL;

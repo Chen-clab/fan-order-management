@@ -1,0 +1,28 @@
+<template>
+  <div class="app-container"><h2>商家工作台</h2><el-alert v-if="profile" :title="'商家资质状态：'+statusText" :type="profile.qualification_status==='APPROVED'?'success':'warning'" :closable="false" />
+    <el-card v-if="profile && profile.qualification_status!=='APPROVED'" class="section"><template #header>提交资质图片</template><p>上传营业执照图片（PNG 或 JPEG，最大 2MB），等待内部审核。</p><input type="file" accept="image/png,image/jpeg" @change="qualificationFile=$event.target.files[0]" /><el-button type="primary" :disabled="!qualificationFile" @click="uploadQualification">上传资质</el-button></el-card>
+    <template v-if="profile && profile.qualification_status==='APPROVED'"><el-card class="section"><template #header>登记商品</template><el-form label-position="top"><el-form-item label="商品名称"><el-input v-model="product.name" /></el-form-item><el-form-item label="商品说明"><el-input v-model="product.description" type="textarea" /></el-form-item><el-form-item label="商品链接（HTTPS）"><el-input v-model="product.url" /></el-form-item><el-form-item label="平台"><el-input v-model="product.platform" /></el-form-item><el-button type="primary" @click="createProduct">保存草稿</el-button></el-form></el-card>
+      <el-card class="section"><template #header>我的商品</template><el-table :data="products"><el-table-column prop="name" label="商品"/><el-table-column prop="status" label="状态"/><el-table-column label="操作" min-width="260"><template #default="scope"><template v-if="['DRAFT','REJECTED'].includes(scope.row.status)"><input type="file" accept="image/png,image/jpeg" @change="files[scope.row.id]=$event.target.files[0]" /><el-button link type="primary" @click="uploadProduct(scope.row)">上传图片</el-button><el-button link type="primary" @click="submitProduct(scope.row)">提交审核</el-button></template></template></el-table-column></el-table></el-card></template>
+    <template v-if="profile && profile.qualification_status==='APPROVED'">
+      <el-card class="section"><template #header>我的订单</template><el-table :data="orders"><el-table-column prop="order_no" label="订单号" min-width="200"/><el-table-column prop="status" label="状态"/><el-table-column prop="agreed_publish_count" label="约定发布次数"/><el-table-column prop="quoted_fee" label="报价（美元）"/><el-table-column label="操作"><template #default="scope"><el-button v-if="scope.row.status==='PENDING_CONFIRMATION'" link type="primary" @click="confirmOrder(scope.row)">确认订单</el-button></template></el-table-column></el-table></el-card>
+      <el-card class="section"><template #header>待确认费用调整</template><el-table :data="fees"><el-table-column prop="order_no" label="订单号" min-width="180"/><el-table-column prop="actual_fee" label="实际费用（美元）"/><el-table-column prop="reason" label="调整原因"/><el-table-column label="操作"><template #default="scope"><el-button link type="primary" @click="confirmFee(scope.row)">确认费用</el-button></template></el-table-column></el-table></el-card>
+    </template>
+  </div>
+</template>
+<script setup>
+import { ref, reactive, computed, onMounted } from 'vue'
+import { ElMessage, ElMessageBox } from 'element-plus'
+import request from '@/utils/request'
+const profile=ref(null),products=ref([]),orders=ref([]),fees=ref([]),qualificationFile=ref(null),files=reactive({}),product=reactive({name:'',description:'',url:'',platform:''})
+const statusText=computed(()=>({PENDING:'待审核',APPROVED:'已通过',REJECTED:'已驳回'}[profile.value?.qualification_status]||profile.value?.qualification_status))
+async function refresh(){profile.value=(await request({url:'/fan/merchant/me',method:'get'})).data;if(profile.value.qualification_status==='APPROVED'){products.value=(await request({url:'/fan/products/mine',method:'get'})).data;orders.value=(await request({url:'/fan/orders/mine',method:'get'})).data;fees.value=(await request({url:'/fan/fee-adjustments/mine',method:'get'})).data}}
+async function sendFile(url,file){const data=new FormData();data.append('file',file);return request({url,method:'post',headers:{'Content-Type':'multipart/form-data',repeatSubmit:false},data})}
+async function uploadQualification(){await sendFile('/fan/merchant/me/qualification',qualificationFile.value);ElMessage.success('资质已提交');await refresh()}
+async function createProduct(){await request({url:'/fan/products',method:'post',data:product});Object.assign(product,{name:'',description:'',url:'',platform:''});ElMessage.success('商品草稿已创建');await refresh()}
+async function uploadProduct(row){if(!files[row.id]){ElMessage.warning('请选择图片');return}await sendFile(`/fan/products/${row.id}/assets`,files[row.id]);ElMessage.success('图片已上传');await refresh()}
+async function submitProduct(row){await request({url:`/fan/products/${row.id}/submit`,method:'post',data:{version:row.version}});ElMessage.success('已提交审核');await refresh()}
+async function confirmOrder(row){const d=(await request({url:`/fan/orders/${row.id}/mine`,method:'get'})).data;const items=d.items.map(i=>`${i.product_name_snapshot}：佣金 ${(Number(i.commission_rate)*100).toFixed(2)}%`).join('；');await ElMessageBox.confirm(`订单 ${d.order_no}；发布 ${d.agreed_publish_count} 次；基础费 ${d.quoted_fee} 美元；${items}。确认合作？`,'确认订单');await request({url:`/fan/orders/${d.id}/confirm`,method:'post',data:{version:d.version}});ElMessage.success('订单已确认');await refresh()}
+async function confirmFee(row){await ElMessageBox.confirm(`确认订单 ${row.order_no} 的实际费用为 ${row.actual_fee} 美元？`,'确认费用');await request({url:`/fan/fee-adjustments/${row.id}/decision`,method:'post',data:{version:row.version,approve:true}});ElMessage.success('费用已确认');await refresh()}
+onMounted(refresh)
+</script>
+<style scoped>.section{margin-top:20px;max-width:900px}.section input[type=file]{max-width:200px;margin-right:12px}</style>
